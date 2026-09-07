@@ -1,0 +1,5 @@
+🎯 What: Fixed a path traversal vulnerability in the mock S3 upload endpoint (`put_object` in `sandboxes/RAG_local/app/mocks/s3.py`).
+
+⚠️ Risk: Unauthenticated or authenticated users could potentially upload files to arbitrary locations on the server by supplying path traversal sequences like `../` or absolute paths in the `object_key`, which could lead to remote code execution (RCE) or overwriting of sensitive files.
+
+🛡️ Solution: The fix resolves the target directory and the final requested file path using `os.path.abspath`. It also uses `lstrip("/")` on the `object_key` to prevent absolute path override when using `os.path.join()`. It then verifies that the requested file path is fully contained within the intended target directory using `os.path.commonpath`. If a path traversal is detected, an HTTP 400 Bad Request exception is raised.

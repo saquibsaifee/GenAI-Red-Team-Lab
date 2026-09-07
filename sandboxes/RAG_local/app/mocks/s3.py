@@ -28,8 +28,16 @@ async def put_object(
 
     os.makedirs(target_dir, exist_ok=True)
     
-    # Handle nested keys (folders)
-    file_path = os.path.join(target_dir, object_key)
+    # Resolve target directory absolute path
+    target_dir_abs = os.path.abspath(target_dir)
+
+    # Handle nested keys (folders) and prevent path traversal
+    # Lstrip '/' to prevent absolute path override
+    file_path = os.path.abspath(os.path.join(target_dir_abs, object_key.lstrip("/")))
+
+    if os.path.commonpath([target_dir_abs, file_path]) != target_dir_abs:
+        raise HTTPException(status_code=400, detail="Path traversal detected")
+
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     
     try:
