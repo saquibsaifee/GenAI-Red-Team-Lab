@@ -69,24 +69,28 @@ def seed_database():
         role_col = "roleSlug" if "roleSlug" in cols else "role"
         print(f"[*] Detected role column: {role_col}")
 
-        for user in users:
-            user_id = user.get("id")
-            email = user.get("email")
-            first_name = user.get("first_name")
-            pwd_hash = user.get("password_hash")
-            role_id = user.get("global_role_id")
+        # Batch check for existing users
+        emails = [user.get("email") for user in users if user.get("email")]
+        existing_emails = set()
+        if emails:
+            placeholders = ",".join("?" * len(emails))
+            cursor.execute(
+                f"SELECT email FROM user WHERE email IN ({placeholders})", tuple(emails)
+            )
+            existing_emails = {row[0] for row in cursor.fetchall()}
 
-            # Check if user already exists
-            cursor.execute("SELECT id FROM user WHERE email = ?", (email,))
-            if cursor.fetchone():
+        users_to_insert = []
+        for user in users:
+            email = user.get("email")
+            if email in existing_emails:
                 print(f"[*] User '{email}' already exists. Skipping insertion.")
             else:
-                # Insert user
-                cursor.execute(
-                    f"""
-                    INSERT INTO user (id, email, firstName, lastName, password, {role_col}, settings, mfaEnabled, disabled)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                user_id = user.get("id")
+                first_name = user.get("first_name")
+                pwd_hash = user.get("password_hash")
+                role_id = user.get("global_role_id")
+
+                users_to_insert.append(
                     (
                         user_id,
                         email,
@@ -97,9 +101,19 @@ def seed_database():
                         "{}",
                         0,
                         0,
-                    ),
+                    )
                 )
-                print(f"[+] Successfully added user: {email}")
+                print(f"[+] Added user to insertion batch: {email}")
+
+        if users_to_insert:
+            cursor.executemany(
+                f"""
+                INSERT INTO user (id, email, firstName, lastName, password, {role_col}, settings, mfaEnabled, disabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                users_to_insert,
+            )
+            print(f"[+] Successfully inserted {len(users_to_insert)} users.")
 
         conn.commit()
         conn.close()
